@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkillTrust Academy — Digital Certificate System</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', 'Leelawadee UI', Tahoma, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+  header { background: linear-gradient(135deg, #1e293b, #0f172a); border-bottom: 1px solid #334155; padding: 18px 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  header h1 { font-size: 1.25rem; color: #38bdf8; }
+  header h1 small { display: block; font-size: .75rem; color: #94a3b8; font-weight: normal; margin-top: 2px; }
+  #walletBox { display: flex; align-items: center; gap: 10px; }
+  #walletAddr { font-family: monospace; font-size: .8rem; color: #a5f3fc; background:#1e293b; padding: 6px 10px; border-radius: 6px; border: 1px solid #334155; }
+  button { cursor: pointer; border: none; border-radius: 8px; padding: 9px 16px; font-size: .9rem; font-weight: 600; transition: .15s; }
+  .btn-primary { background: #0ea5e9; color: #fff; } .btn-primary:hover { background: #0284c7; }
+  .btn-danger  { background: #dc2626; color: #fff; } .btn-danger:hover  { background: #b91c1c; }
+  .btn-ghost   { background: #1e293b; color: #94a3b8; border: 1px solid #334155; } .btn-ghost:hover { color: #e2e8f0; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  nav { display: flex; gap: 4px; padding: 0 24px; background: #0f172a; border-bottom: 1px solid #1e293b; overflow-x: auto; }
+  nav button { background: none; color: #94a3b8; padding: 14px 18px; border-radius: 0; border-bottom: 3px solid transparent; font-weight: 500; white-space: nowrap; }
+  nav button.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+  main { max-width: 960px; margin: 0 auto; padding: 28px 20px 60px; }
+  section.tab { display: none; }
+  section.tab.active { display: block; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+  .card h2 { font-size: 1.05rem; color: #f1f5f9; margin-bottom: 4px; }
+  .card .hint { font-size: .82rem; color: #94a3b8; margin-bottom: 18px; }
+  label { display: block; font-size: .8rem; color: #94a3b8; margin: 12px 0 5px; }
+  input, select, textarea { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: .9rem; font-family: inherit; }
+  input:focus, select:focus { outline: none; border-color: #0ea5e9; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+  .status { margin-top: 14px; padding: 12px 14px; border-radius: 8px; font-size: .88rem; display: none; white-space: pre-wrap; word-break: break-word; }
+  .status.ok   { display: block; background: #064e3b; color: #6ee7b7; border: 1px solid #059669; }
+  .status.err  { display: block; background: #450a0a; color: #fca5a5; border: 1px solid #dc2626; }
+  .status.info { display: block; background: #172554; color: #93c5fd; border: 1px solid #2563eb; }
+  .badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: .8rem; font-weight: 700; }
+  .badge.valid   { background: #064e3b; color: #34d399; }
+  .badge.invalid { background: #450a0a; color: #f87171; }
+  .badge.notfound{ background: #78350f; color: #fbbf24; }
+  .kv { display: grid; grid-template-columns: 170px 1fr; gap: 6px 14px; margin-top: 16px; font-size: .88rem; }
+  .kv dt { color: #94a3b8; } .kv dd { font-family: monospace; word-break: break-all; color: #e2e8f0; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th { text-align: left; color: #94a3b8; padding: 8px; border-bottom: 1px solid #334155; font-weight: 600; }
+  td { padding: 8px; border-bottom: 1px solid #1e293b; }
+  .actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; align-items: center; }
+  #qrBox { background: #fff; padding: 12px; border-radius: 10px; width: max-content; margin-top: 16px; }
+  .empty { color: #64748b; font-size: .88rem; padding: 18px 0; text-align: center; }
+  a { color: #38bdf8; }
+  details.settings { margin-top: 8px; }
+  details.settings summary { color: #64748b; font-size: .8rem; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎓 SkillTrust Academy <small>Blockchain Digital Certificate Verification System</small></h1>
+  <div id="walletBox">
+    <span id="walletAddr" style="display:none"></span>
+    <button id="btnConnect" class="btn-primary">เชื่อมต่อ Wallet</button>
+  </div>
+</header>
+
+<nav>
+  <button data-tab="courses"   class="active">📚 หลักสูตร</button>
+  <button data-tab="issue">     📜 ออกใบรับรอง</button>
+  <button data-tab="verify">    ✅ ตรวจสอบใบรับรอง</button>
+  <button data-tab="revoke">    ⛔ เพิกถอน</button>
+  <button data-tab="dashboard"> 👤 ใบรับรองของฉัน</button>
+</nav>
+
+<main>
+  <!-- ================= 1) หลักสูตร ================= -->
+  <section class="tab active" id="tab-courses">
+    <div class="card">
+      <h2>ลงทะเบียนหลักสูตร (Create Training Course)</h2>
+      <div class="hint">เฉพาะผู้ดูแลระบบ (Admin) — สร้างหลักสูตร รหัสหลักสูตร และรายละเอียดการอบรม</div>
+      <div class="row">
+        <div><label>รหัสหลักสูตร *</label><input id="courseCode" placeholder="เช่น AI-101"></div>
+        <div><label>ชื่อหลักสูตร *</label><input id="courseName" placeholder="เช่น AI Fundamentals"></div>
+      </div>
+      <label>รายละเอียดการอบรม</label>
+      <textarea id="courseDetails" rows="2" placeholder="จำนวนชั่วโมง เนื้อหา ผู้สอน ฯลฯ"></textarea>
+      <div class="actions">
+        <button id="btnCreateCourse" class="btn-primary" disabled>สร้างหลักสูตร</button>
+      </div>
+      <div id="stCourse" class="status"></div>
+    </div>
+    <div class="card">
+      <h2>หลักสูตรทั้งหมดในระบบ</h2>
+      <div id="courseTable"><div class="empty">—</div></div>
+      <div class="actions"><button id="btnRefreshCourses" class="btn-ghost">โหลดใหม่</button></div>
+    </div>
+  </section>
+
+  <!-- ================= 2+3) ออกใบรับรอง ================= -->
+  <section class="tab" id="tab-issue">
+    <div class="card">
+      <h2>ออกใบรับรอง (Issue Certificate)</h2>
+      <div class="hint">เฉพาะผู้ได้รับสิทธิ์ (Issuer) — ระบบจะคำนวณ Hash ของข้อมูลใบรับรองฝั่งเบราว์เซอร์ และบันทึกเฉพาะ Hash ลง Blockchain ข้อมูลส่วนบุคคล (ชื่อผู้รับ) <b>ไม่ถูกบันทึกบน chain</b></div>
+      <div class="row">
+        <div><label>รหัสใบรับรอง *</label>
+          <div style="display:flex; gap:8px"><input id="certId" placeholder="เช่น CERT-2026-0001"><button id="btnGenId" class="btn-ghost" style="white-space:nowrap">สุ่มรหัส</button></div>
+        </div>
+        <div><label>หลักสูตร *</label><select id="certCourse"></select></div>
+      </div>
+      <div class="row">
+        <div><label>Wallet ผู้รับใบรับรอง *</label><input id="certHolder" placeholder="0x..."></div>
+        <div><label>วันที่ออก</label><input id="certDate" type="date"></div>
+      </div>
+      <div class="row">
+        <div><label>ชื่อ-นามสกุลผู้รับ (ใช้คำนวณ Hash เท่านั้น ไม่ขึ้น Blockchain)</label><input id="certHolderName" placeholder="เช่น สมชาย ใจดี"></div>
+        <div><label>เกรด / คะแนน (ถ้ามี)</label><input id="certGrade" placeholder="เช่น Pass with Distinction"></div>
+      </div>
+      <div class="actions">
+        <button id="btnIssue" class="btn-primary" disabled>ออกใบรับรอง + บันทึก Hash ลง Blockchain</button>
+      </div>
+      <div id="stIssue" class="status"></div>
+      <div id="qrBox" style="display:none"></div>
+      <div id="qrUrl" style="font-size:.8rem;color:#94a3b8;margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h2>จัดการสิทธิ์ผู้ออกใบรับรอง (เฉพาะ Admin)</h2>
+      <div class="row">
+        <div><label>Wallet address ที่ต้องการให้สิทธิ์</label><input id="issuerAddr" placeholder="0x..."></div>
+        <div style="align-self:end" class="actions">
+          <button id="btnAddIssuer" class="btn-primary" disabled>ให้สิทธิ์</button>
+          <button id="btnRemoveIssuer" class="btn-danger" disabled>ถอนสิทธิ์</button>
+        </div>
+      </div>
+      <div id="stIssuer" class="status"></div>
+    </div>
+  </section>
+
+  <!-- ================= 4) ตรวจสอบ ================= -->
+  <section class="tab" id="tab-verify">
+    <div class="card">
+      <h2>ตรวจสอบความถูกต้อง (Verify Certificate)</h2>
+      <div class="hint">ค้นหาด้วยรหัสใบรับรอง (จาก QR Code) — ไม่ต้องเชื่อม Wallet ก็ตรวจสอบได้</div>
+      <div class="row">
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <div style="flex:1"><label>รหัสใบรับรอง</label><input id="verifyId" placeholder="เช่น CERT-2026-0001"></div>
+          <button id="btnVerify" class="btn-primary">ตรวจสอบ</button>
+        </div>
+      </div>
+      <div id="stVerify" class="status"></div>
+      <div id="verifyResult"></div>
+    </div>
+    <div class="card">
+      <h2>ตรวจสอบจากไฟล์ใบรับรอง (กันเอกสารปลอม)</h2>
+      <div class="hint">อัปโหลดไฟล์ PDF/รูปภาพ ระบบจะคำนวณ Hash ของไฟล์และเทียบกับที่บันทึกบน Blockchain หากไฟล์ถูกแก้ไขแม้เพียงตัวอักษรเดียว Hash จะไม่ตรง</div>
+      <input type="file" id="verifyFile">
+      <div class="actions"><button id="btnVerifyFile" class="btn-primary">ตรวจสอบจากไฟล์</button></div>
+      <div id="stVerifyFile" class="status"></div>
+    </div>
+  </section>
+
+  <!-- ================= 5) เพิกถอน ================= -->
+  <section class="tab" id="tab-revoke">
+    <div class="card">
+      <h2>เพิกถอนใบรับรอง (Revoke Certificate)</h2>
+      <div class="hint">เฉพาะผู้ได้รับสิทธิ์ — ยกเลิกใบรับรองที่ออกผิดพลาด/ทุจริต โดยประวัติยังถูกเก็บไว้บน Blockchain</div>
+      <div class="row">
+        <div><label>รหัสใบรับรองที่ต้องการเพิกถอน</label><input id="revokeId" placeholder="เช่น CERT-2026-0001"></div>
+        <div><label>เหตุผล</label><input id="revokeReason" placeholder="เช่น ออกผิดพลาด / ตรวจพบการทุจริต"></div>
+      </div>
+      <div class="actions">
+        <button id="btnRevoke" class="btn-danger" disabled>ยืนยันเพิกถอน</button>
+      </div>
+      <div id="stRevoke" class="status"></div>
+    </div>
+  </section>
+
+  <!-- ================= 6) Dashboard ================= -->
+  <section class="tab" id="tab-dashboard">
+    <div class="card">
+      <h2>ประวัติใบรับรองของฉัน (Certificate Dashboard)</h2>
+      <div class="hint">รายการใบรับรองที่ผูกกับ Wallet ที่เชื่อมต่ออยู่</div>
+      <div id="myCerts"><div class="empty">เชื่อมต่อ Wallet ก่อน แล้วกดโหลด</div></div>
+      <div class="actions"><button id="btnLoadMine" class="btn-ghost" disabled>โหลดใบรับรองของฉัน</button></div>
+    </div>
+    <div class="card">
+      <h2>สถิติระบบ</h2>
+      <div class="kv">
+        <dt>จำนวนหลักสูตร</dt><dd id="statCourses">-</dd>
+        <dt>ใบรับรองที่ออกทั้งหมด</dt><dd id="statCerts">-</dd>
+        <dt>ผู้ได้รับสิทธิ์ออกใบรับรอง</dt><dd id="statIssuers">-</dd>
+      </div>
+    </div>
+    <details class="settings">
+      <summary>⚙️ ตั้งค่า Contract Address (สำหรับผู้ดูแลระบบ)</summary>
+      <div class="card" style="margin-top:10px">
+        <label>Address ของ CertificateRegistry</label>
+        <input id="cfgAddress" placeholder="0x...">
+        <div class="actions"><button id="btnSaveCfg" class="btn-primary">บันทึก</button></div>
+      </div>
+    </details>
+  </section>
+</main>
+
+<script>
+/* =========================================================
+ * SkillTrust Certificate DApp — frontend logic
+ * =======================================================*/
+const ABI = [
+  "function admin() view returns (address)",
+  "function isIssuer(address) view returns (bool)",
+  "function addIssuer(address)",
+  "function removeIssuer(address)",
+  "function getIssuers() view returns (address[])",
+  "function createCourse(string,string,string)",
+  "function getCourse(string) view returns (string,string,uint256,bool)",
+  "function getAllCourses() view returns (string[])",
+  "function issueCertificate(string,string,address,bytes32)",
+  "function verifyCertificate(string) view returns (bool,bool,string,bytes32,address,uint256,address)",
+  "function findByDocumentHash(bytes32) view returns (string,bool,bool)",
+  "function revokeCertificate(string,string)",
+  "function getMyCertificates() view returns (string[])",
+  "function getHolderCertificates(address) view returns (string[])",
+  "function getTotalCertificates() view returns (uint256)",
+  "event CertificateIssued(string indexed certificateId, string indexed courseCode, address indexed holder, bytes32 documentHash, address issuedBy, uint256 issuedAt)",
+  "event CertificateRevoked(string indexed certificateId, address indexed revokedBy, uint256 revokedAt, string reason)"
+];
+
+let provider = null, signer = null, contract = null, myAddress = null;
+const $ = id => document.getElementById(id);
+
+function contractAddress() { return localStorage.getItem("registryAddress") || ""; }
+
+// โหลด address จาก deployed.json (สร้างโดย scripts/deploy.js) ถ้ายังไม่ได้ตั้งค่าใน localStorage
+(async function loadDeployed() {
+  try {
+    const res = await fetch("deployed.json");
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.address && !contractAddress()) localStorage.setItem("registryAddress", data.address);
+  } catch (_) { /* ใช้แบบเปิดไฟล์ตรง (file://) จะไม่มี fetch ให้ใช้ ให้กรอก address เองในแท็บตั้งค่า */ }
+})();
+function setStatus(id, msg, cls) { const el = $(id); el.className = "status " + cls; el.textContent = msg; }
+function short(addr) { return addr ? addr.slice(0, 6) + "…" + addr.slice(-4) : "-"; }
+function tsToDate(t) { return new Date(Number(t) * 1000).toLocaleString("th-TH"); }
+function clearStatus(id) { const el = $(id); el.className = "status"; el.textContent = ""; }
+
+/* ---------- hash: ข้อมูลส่วนบุคคลถูก hash ฝั่ง client เสมอ ---------- */
+function computeCertificateHash(certId, courseCode, holderAddr, holderName, grade, dateStr) {
+  const payload = JSON.stringify({ certId, courseCode, holderAddr, holderName, grade, dateStr });
+  return ethers.utils.keccak256(ethers.utils.toUtf8Bytes(payload));
+}
+async function fileHash(file) {
+  const buf = await file.arrayBuffer();
+  return ethers.utils.keccak256(new Uint8Array(buf));
+}
+
+/* ---------- Wallet ---------- */
+async function connectWallet() {
+  if (!window.ethereum) { alert("กรุณาติดตั้ง MetaMask"); return; }
+  provider = new ethers.providers.Web3Provider(window.ethereum);
+  await provider.send("eth_requestAccounts", []);
+  signer = provider.getSigner();
+  myAddress = await signer.getAddress();
+  const net = await provider.getNetwork();
+  $("walletAddr").textContent = short(myAddress) + " (chain " + net.chainId + ")";
+  $("walletAddr").style.display = "inline";
+  $("btnConnect").textContent = "เชื่อมต่อแล้ว ✓";
+  $("btnConnect").classList.remove("btn-primary");
+  $("btnConnect").classList.add("btn-ghost");
+  $("btnLoadMine").disabled = false;
+
+  const addr = contractAddress();
+  if (!addr) {
+    setStatus("stVerify", "ยังไม่ได้ตั้งค่า Contract Address — เปิดแท็บ 'ใบรับรองของฉัน' แล้วกรอก Address ในส่วนตั้งค่า", "info");
+    return;
+  }
+  contract = new ethers.Contract(addr, ABI, provider);
+  $("btnCreateCourse").disabled = false;
+  $("btnIssue").disabled = false;
+  $("btnAddIssuer").disabled = false;
+  $("btnRemoveIssuer").disabled = false;
+  $("btnRevoke").disabled = false;
+  await refreshAll();
+}
+
+/* ---------- Tabs ---------- */
+document.querySelectorAll("nav button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll("section.tab").forEach(s => s.classList.remove("active"));
+    btn.classList.add("active");
+    $("tab-" + btn.dataset.tab).classList.add("active");
+    if (btn.dataset.tab === "dashboard") loadMyCertificates();
+    if (btn.dataset.tab === "courses") loadCourses();
+  });
+});
+
+/* ---------- 1) Courses ---------- */
+async function loadCourses() {
+  if (!contract) return;
+  const codes = await contract.getAllCourses();
+  $("statCourses").textContent = codes.length;
+  if (codes.length === 0) { $("courseTable").innerHTML = '<div class="empty">ยังไม่มีหลักสูตร</div>'; return; }
+  let html = "<table><tr><th>รหัส</th><th>ชื่อหลักสูตร</th><th>สร้างเมื่อ</th><th>สถานะ</th></tr>";
+  for (const c of codes) {
+    const [, , createdAt, exists] = await contract.getCourse(c);
+    html += `<tr><td><b>${c}</b></td><td>${(await contract.getCourse(c))[0]}</td>
+      <td>${tsToDate(createdAt)}</td><td>${exists ? '<span class="badge valid">เปิดใช้</span>' : '-'}</td></tr>`;
+  }
+  $("courseTable").innerHTML = html + "</table>";
+  // เติม dropdown ในหน้า issue
+  $("certCourse").innerHTML = codes.map(c => `<option>${c}</option>`).join("");
+}
+
+$("btnCreateCourse").addEventListener("click", async () => {
+  try {
+    const code = $("courseCode").value.trim(), name = $("courseName").value.trim(), det = $("courseDetails").value.trim();
+    if (!code || !name) return setStatus("stCourse", "กรุณากรอกรหัสและชื่อหลักสูตร", "err");
+    clearStatus("stCourse");
+    const tx = await contract.connect(signer).createCourse(code, name, det);
+    setStatus("stCourse", "กำลังบันทึกลง Blockchain… (tx: " + tx.hash.slice(0, 10) + "…)", "info");
+    await tx.wait();
+    setStatus("stCourse", "✓ สร้างหลักสูตร " + code + " สำเร็จ", "ok");
+    $("courseCode").value = ""; $("courseName").value = ""; $("courseDetails").value = "";
+    loadCourses();
+  } catch (e) { setStatus("stCourse", "ผิดพลาด: " + parseErr(e), "err"); }
+});
+$("btnRefreshCourses").addEventListener("click", loadCourses);
+
+/* ---------- 2+3) Issue ---------- */
+$("btnGenId").addEventListener("click", () => {
+  const y = new Date().getFullYear();
+  $("certId").value = "CERT-" + y + "-" + Math.random().toString(36).slice(2, 8).toUpperCase();
+});
+$("btnIssue").addEventListener("click", async () => {
+  try {
+    const certId = $("certId").value.trim();
+    const courseCode = $("certCourse").value;
+    const holder = $("certHolder").value.trim();
+    const holderName = $("certHolderName").value.trim();
+    const grade = $("certGrade").value.trim();
+    const dateStr = $("certDate").value || new Date().toISOString().slice(0, 10);
+    if (!certId || !holder || !ethers.utils.isAddress(holder))
+      return setStatus("stIssue", "กรุณากรอกรหัสใบรับรองและ wallet address ผู้รับให้ถูกต้อง", "err");
+    clearStatus("stIssue");
+
+    // hash คำนวณจากข้อมูลจริงฝั่ง client — ข้อมูลส่วนบุคคลไม่ถูกส่งขึ้น chain
+    const hash = computeCertificateHash(certId, courseCode, holder, holderName, grade, dateStr);
+    const tx = await contract.connect(signer).issueCertificate(certId, courseCode, holder, hash);
+    setStatus("stIssue", "กำลังบันทึกลง Blockchain… (tx: " + tx.hash.slice(0, 10) + "…)", "info");
+    const receipt = await tx.wait();
+
+    let issuedAt = "-";
+    for (const log of receipt.logs) {
+      try {
+        const ev = contract.interface.parseLog(log);
+        if (ev.name === "CertificateIssued") issuedAt = tsToDate(ev.args.issuedAt);
+      } catch (_) {}
+    }
+    setStatus("stIssue", "✓ ออกใบรับรอง " + certId + " สำเร็จ\nDocument Hash: " + hash +
+      (issuedAt !== "-" ? "\nออกเมื่อ: " + issuedAt : ""), "ok");
+
+    // QR Code สำหรับผู้ตรวจสอบสแกน
+    const verifyUrl = location.origin + location.pathname + "?cert=" + encodeURIComponent(certId);
+    $("qrBox").innerHTML = ""; $("qrBox").style.display = "block";
+    new QRCode($("qrBox"), { text: verifyUrl, width: 160, height: 160 });
+    $("qrUrl").innerHTML = 'QR Code สำหรับตรวจสอบ: <a href="' + verifyUrl + '">' + verifyUrl + "</a>";
+    $("certId").value = ""; $("certHolder").value = ""; $("certHolderName").value = "";
+    refreshAll();
+  } catch (e) { setStatus("stIssue", "ผิดพลาด: " + parseErr(e), "err"); }
+});
+
+/* ---------- Issuer management ---------- */
+$("btnAddIssuer").addEventListener("click", async () => {
+  try {
+    const a = $("issuerAddr").value.trim();
+    if (!ethers.utils.isAddress(a)) return setStatus("stIssuer", "Address ไม่ถูกต้อง", "err");
+    const tx = await contract.connect(signer).addIssuer(a); await tx.wait();
+    setStatus("stIssuer", "✓ ให้สิทธิ์ " + short(a) + " สำเร็จ", "ok");
+    refreshAll();
+  } catch (e) { setStatus("stIssuer", "ผิดพลาด: " + parseErr(e), "err"); }
+});
+$("btnRemoveIssuer").addEventListener("click", async () => {
+  try {
+    const a = $("issuerAddr").value.trim();
+    if (!ethers.utils.isAddress(a)) return setStatus("stIssuer", "Address ไม่ถูกต้อง", "err");
+    const tx = await contract.connect(signer).removeIssuer(a); await tx.wait();
+    setStatus("stIssuer", "✓ ถอนสิทธิ์ " + short(a) + " สำเร็จ", "ok");
+    refreshAll();
+  } catch (e) { setStatus("stIssuer", "ผิดพลาด: " + parseErr(e), "err"); }
+});
+
+/* ---------- 4) Verify ---------- */
+async function renderVerify(id) {
+  const [found, valid, courseCode, docHash, holder, issuedAt, issuedBy] = await contract.verifyCertificate(id);
+  if (!found) {
+    $("verifyResult").innerHTML = '<div class="kv"><dt>สถานะ</dt><dd><span class="badge notfound">ไม่พบใบรับรองนี้ในระบบ</span></dd></div>';
+    return;
+  }
+  const badge = valid ? '<span class="badge valid">✓ ใบรับรองถูกต้อง มีผลใช้งาน</span>'
+                      : '<span class="badge invalid">⛔ ใบรับรองถูกเพิกถอนแล้ว</span>';
+  $("verifyResult").innerHTML =
+    '<div class="kv"><dt>สถานะ</dt><dd>' + badge + '</dd>' +
+    '<dt>รหัสหลักสูตร</dt><dd>' + courseCode + '</dd>' +
+    '<dt>Document Hash</dt><dd>' + docHash + '</dd>' +
+    '<dt>ผู้รับใบรับรอง (Wallet)</dt><dd>' + holder + '</dd>' +
+    '<dt>วันที่ออก</dt><dd>' + tsToDate(issuedAt) + '</dd>' +
+    '<dt>ออกโดย</dt><dd>' + issuedBy + '</dd></div>';
+}
+$("btnVerify").addEventListener("click", async () => {
+  const id = $("verifyId").value.trim();
+  if (!id || !contract) return setStatus("stVerify", "กรุณาตั้งค่า Contract และกรอกรหัสใบรับรอง", "err");
+  try { clearStatus("stVerify"); await renderVerify(id); }
+  catch (e) { setStatus("stVerify", "ผิดพลาด: " + parseErr(e), "err"); }
+});
+$("btnVerifyFile").addEventListener("click", async () => {
+  const f = $("verifyFile").files[0];
+  if (!f || !contract) return setStatus("stVerifyFile", "เลือกไฟล์ใบรับรองก่อน", "err");
+  try {
+    const h = await fileHash(f);
+    const [cid, found, valid] = await contract.findByDocumentHash(h);
+    if (!found) setStatus("stVerifyFile", "✗ ไม่พบ Hash นี้ในระบบ — ไฟล์อาจถูกแก้ไขหรือไม่ได้ออกโดยระบบ\nHash ของไฟล์: " + h, "err");
+    else if (!valid) setStatus("stVerifyFile", "⛔ พบใบรับรอง " + cid + " แต่ถูกเพิกถอนแล้ว\nHash ตรงกัน: " + h, "err");
+    else setStatus("stVerifyFile", "✓ ไฟล์ตรงกับใบรับรอง " + cid + " บน Blockchain ไฟล์ไม่ถูกแก้ไข\nHash ตรงกัน: " + h, "ok");
+  } catch (e) { setStatus("stVerifyFile", "ผิดพลาด: " + parseErr(e), "err"); }
+});
+
+/* ---------- 5) Revoke ---------- */
+$("btnRevoke").addEventListener("click", async () => {
+  try {
+    const id = $("revokeId").value.trim(), reason = $("revokeReason").value.trim() || "(ไม่ระบุ)";
+    if (!id) return setStatus("stRevoke", "กรอกรหัสใบรับรองก่อน", "err");
+    clearStatus("stRevoke");
+    const tx = await contract.connect(signer).revokeCertificate(id, reason);
+    setStatus("stRevoke", "กำลังบันทึก…", "info");
+    await tx.wait();
+    setStatus("stRevoke", "✓ เพิกถอน " + id + " สำเร็จ (ประวัติยังเก็บไว้บน Blockchain)", "ok");
+  } catch (e) { setStatus("stRevoke", "ผิดพลาด: " + parseErr(e), "err"); }
+});
+
+/* ---------- 6) Dashboard ---------- */
+async function loadMyCertificates() {
+  if (!contract || !myAddress) return;
+  const ids = await contract.getMyCertificates();
+  if (ids.length === 0) { $("myCerts").innerHTML = '<div class="empty">Wallet นี้ยังไม่มีใบรับรอง</div>'; return; }
+  let html = "<table><tr><th>รหัสใบรับรอง</th><th>หลักสูตร</th><th>วันที่ออก</th><th>สถานะ</th><th></th></tr>";
+  for (const id of ids) {
+    const [found, valid, courseCode, , , issuedAt, issuedBy] = await contract.verifyCertificate(id);
+    html += `<tr><td><b>${id}</b></td><td>${courseCode}</td><td>${tsToDate(issuedAt)}</td>
+      <td>${valid ? '<span class="badge valid">มีผลใช้งาน</span>' : '<span class="badge invalid">ถูกเพิกถอน</span>'}</td>
+      <td><button class="btn-ghost" onclick="openVerify('${id}')">ตรวจสอบ</button></td></tr>`;
+  }
+  $("myCerts").innerHTML = html + "</table>";
+}
+window.openVerify = function (id) {
+  document.querySelector('nav button[data-tab="verify"]').click();
+  $("verifyId").value = id;
+  $("btnVerify").click();
+};
+$("btnLoadMine").addEventListener("click", loadMyCertificates);
+
+/* ---------- Settings & stats ---------- */
+$("btnSaveCfg").addEventListener("click", () => {
+  const a = $("cfgAddress").value.trim();
+  if (!ethers.utils.isAddress(a)) return alert("Address ไม่ถูกต้อง");
+  localStorage.setItem("registryAddress", a);
+  alert("บันทึกแล้ว — กดเชื่อมต่อ Wallet อีกครั้งเพื่อโหลด Contract");
+});
+async function refreshAll() {
+  if (!contract) return;
+  try {
+    $("statCerts").textContent = Number(await contract.getTotalCertificates());
+    $("statIssuers").textContent = (await contract.getIssuers()).length;
+    await loadCourses();
+  } catch (_) {}
+}
+function parseErr(e) {
+  if (e && e.reason) return e.reason;
+  if (e && e.data && e.data.message) return e.data.message;
+  if (e && e.message) return e.message.slice(0, 160);
+  return String(e);
+}
+
+/* ---------- init ---------- */
+$("btnConnect").addEventListener("click", connectWallet);
+if (contractAddress()) $("cfgAddress").value = contractAddress();
+// เปิดจาก QR: ?cert=CERT-xxxx -> ตรวจสอบอัตโนมัติ
+window.addEventListener("DOMContentLoaded", async () => {
+  const cert = new URLSearchParams(location.search).get("cert");
+  if (cert) {
+    document.querySelector('nav button[data-tab="verify"]').click();
+    $("verifyId").value = cert;
+  }
+});
+window.addEventListener("load", async () => {
+  if (window.ethereum && window.ethereum.selectedAddress) connectWallet();
+});
+</script>
+</body>
+</html>

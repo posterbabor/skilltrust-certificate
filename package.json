@@ -1,0 +1,16 @@
+{
+  "name": "skilltrust-certificate",
+  "version": "1.0.0",
+  "description": "Blockchain Digital Certificate Verification System (โจทย์ที่ 3)",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0"
+  }
+}
